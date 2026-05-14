@@ -14,10 +14,11 @@ nohup accelerate launch \
     --gradient_accumulation_steps 4 \
     --output_dir  /zju_wck/yzh/3_train/OPSD/output/ \
     --run_config qwen31b_gen1024_fixteacher_temp11_forwardbeta0_clip005 \
-    --num_train_epochs 30 \
+    --num_train_epochs 1 \
+    --max_steps 100 \
     --max_completion_length 1024 \
-    --save_steps 25 \
-    --logging_steps 2 \
+    --save_steps 20 \
+    --logging_steps 1 \
     --attn_implementation flash_attention_2 \
     --dtype bfloat16 \
     --max_length 20000 \
