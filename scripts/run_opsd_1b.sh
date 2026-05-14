@@ -1,4 +1,5 @@
 export CUDA_VISIBLE_DEVICES=2,3
+export TORCH_CUDA_ARCH_LIST="8.0"
 
 nohup accelerate launch \
     --config_file scripts/accelerate_2gpu.yaml \
