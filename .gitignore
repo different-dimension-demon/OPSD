@@ -1,3 +1,28 @@
+# Python 缓存文件（你已列出的）
 __pycache__/
 *.py[cod]
 *$py.class
+
+# 日志文件
+*.log
+logs/
+log/
+*.log.*
+
+# Weights & Biases 运行记录文件夹
+wandb/
+.wandb/
+
+# 可选：补充常见的Python项目忽略项（推荐添加）
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+*.pth
+*.pt
+*.pkl
+*.h5
+.idea/
+.vscode/
+.DS_Store

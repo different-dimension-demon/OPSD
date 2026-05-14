@@ -11,7 +11,7 @@ nohup accelerate launch \
     --per_device_train_batch_size 4 \
     --gradient_checkpointing \
     --gradient_accumulation_steps 4 \
-    --output_dir  /data0/siyanz/opsd/ \
+    --output_dir  /zju_wck/yzh/3_train/OPSD/output/ \
     --run_config qwen31b_gen1024_fixteacher_temp11_forwardbeta0_clip005 \
     --num_train_epochs 30 \
     --max_completion_length 1024 \
