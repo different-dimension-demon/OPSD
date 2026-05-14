@@ -1,15 +1,16 @@
-accelerate launch \
-    --config_file accelerate.yaml \
-    --num_processes 4 \
-    --gradient_accumulation_steps 2 \
+export CUDA_VISIBLE_DEVICES=2,3
+
+nohup accelerate launch \
+    --config_file scripts/accelerate_2gpu.yaml \
+    --num_processes 2 \
     --main_process_port 12949 \
     opsd_train.py \
-    --model_name_or_path /data0/shared/Qwen3-1.7B \
+    --model_name_or_path Qwen/Qwen3-1.7B \
     --learning_rate 5e-6 \
     --max_grad_norm 0.1 \
     --per_device_train_batch_size 4 \
     --gradient_checkpointing \
-    --gradient_accumulation_steps 2 \
+    --gradient_accumulation_steps 4 \
     --output_dir  /data0/siyanz/opsd/ \
     --run_config qwen31b_gen1024_fixteacher_temp11_forwardbeta0_clip005 \
     --num_train_epochs 30 \
@@ -17,7 +18,7 @@ accelerate launch \
     --save_steps 25 \
     --logging_steps 2 \
     --attn_implementation flash_attention_2 \
-    --torch_dtype bfloat16 \
+    --dtype bfloat16 \
     --max_length 20000 \
     --beta 0 \
     --use_vllm \
@@ -34,4 +35,5 @@ accelerate launch \
     --lmbda 1 \
     --fixed_teacher \
     --jsd_token_clip 0.05 \
-    --wandb_project OPSD
+    --wandb_project OPSD \
+    > opsd_1b_train.log 2>&1 &
