@@ -2,7 +2,7 @@ export CUDA_VISIBLE_DEVICES=2,3
 export TORCH_CUDA_ARCH_LIST="8.0"
 
 nohup accelerate launch \
-    --config_file scripts/configs/accelerate_2gpu.yaml \
+    --config_file scripts/configs/accelerate_2gpu_ga16.yaml \
     --num_processes 2 \
     --main_process_port 19346 \
     grpo_train.py \
