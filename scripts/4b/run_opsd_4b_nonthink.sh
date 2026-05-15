@@ -1,17 +1,17 @@
 accelerate launch \
-    --config_file accelerate.yaml \
-    --num_processes 8 \
+    --config_file scripts/configs/accelerate.yaml \
+    --num_processes 4 \
     --gradient_accumulation_steps 2 \
     --main_process_port 12949 \
     opsd_train.py \
-    --model_name_or_path /data0/shared/Qwen3-8B \
+    --model_name_or_path /data0/shared/Qwen3-4B \
     --learning_rate 5e-6 \
     --max_grad_norm 0.1 \
-    --per_device_train_batch_size 2 \
+    --per_device_train_batch_size 4 \
     --gradient_checkpointing \
     --gradient_accumulation_steps 2 \
     --output_dir  /data0/siyanz/opsd/ \
-    --run_config qwen38b_gen1024_both_nonthink_fixteacher_temp11_forwardbeta0_clip1e-7 \
+    --run_config qwen34b_gen1024_both_nonthink_fixteacher_temp11_forwardbeta0_clip1e-6 \
     --num_train_epochs 30 \
     --max_completion_length 1024 \
     --save_steps 25 \
@@ -35,5 +35,5 @@ accelerate launch \
     --fixed_teacher \
     --student_thinking False \
     --teacher_thinking False \
-    --jsd_token_clip 1e-7 \
+    --jsd_token_clip 1e-6 \
     --wandb_project OPSD

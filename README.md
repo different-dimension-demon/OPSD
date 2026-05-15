@@ -46,11 +46,11 @@ The code uses `trl`'s experimental GOLD trainer as a base.
 ├── opsd_train.py            # OPSD training entry point
 ├── sft_train.py             # SFT baseline training entry point
 ├── grpo_train.py            # GRPO baseline training entry point
-├── accelerate.yaml          # Accelerate config (multi-GPU)
 ├── scripts/
-│   ├── run_opsd.sh          # Example launch script for OPSD
-│   ├── run_sft.sh           # Example launch script for SFT
-│   └── run_grpo.sh          # Example launch script for GRPO
+│   ├── configs/             # Accelerate configs
+│   ├── 1b/                  # Qwen3-1.7B launch scripts
+│   ├── 4b/                  # Qwen3-4B launch scripts
+│   └── 8b/                  # Qwen3-8B launch scripts
 └── eval/
     ├── evaluate_math.py     # Evaluation script (vLLM)
     └── run_eval.sh          # Example evaluation script
@@ -61,7 +61,7 @@ The code uses `trl`'s experimental GOLD trainer as a base.
 Reproduce results on Qwen3-1.7B (🚀 training only takes **~15 minutes** on 4×H100 and peaks within 100 steps):
 
 ```bash
-bash scripts/run_opsd_1b.sh
+bash scripts/1b/run_opsd_1b.sh
 ```
 Evaluation: (evaluation takes ~ 30-50 minutes on 4xh100 for each checkpoint) 
 ```bash
@@ -125,8 +125,8 @@ OPSD can also run in non-thinking setting where both the Qwen student and teache
 
 Training:
 ```bash
-bash scripts/run_opsd_4b_nonthink.sh
-bash scripts/run_opsd_8b_nonthink.sh
+bash scripts/4b/run_opsd_4b_nonthink.sh
+bash scripts/8b/run_opsd_8b_nonthink.sh
 ```
 
 Evaluation:
@@ -290,11 +290,11 @@ bash run_eval_nonthink.sh
 
 ### SFT Baseline
 
-See [`scripts/run_sft.sh`](scripts/run_sft.sh).
+See [`scripts/4b/run_sft.sh`](scripts/4b/run_sft.sh) and [`scripts/1b/run_sft_1b.sh`](scripts/1b/run_sft_1b.sh).
 
 ### GRPO Baseline
 
-See [`scripts/run_grpo.sh`](scripts/run_grpo.sh).
+See [`scripts/4b/run_grpo.sh`](scripts/4b/run_grpo.sh) and [`scripts/1b/run_grpo_1b.sh`](scripts/1b/run_grpo_1b.sh).
 
 ### Acknowledgements
 Our implementation builds on [TRL GOLD Trainer](https://huggingface.co/docs/trl/gold_trainer). We sincerely thank [@simran135](https://github.com/simran135) and [@beanie00](https://github.com/beanie00) for identifying the prompt template bugs and the zero-2 issue, respectively!

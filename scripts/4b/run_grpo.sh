@@ -1,5 +1,5 @@
 CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7 accelerate launch \
-    --config_file accelerate.yaml \
+    --config_file scripts/configs/accelerate.yaml \
     --num_processes 8 \
     --gradient_accumulation_steps 4 \
     --main_process_port 19346 \
