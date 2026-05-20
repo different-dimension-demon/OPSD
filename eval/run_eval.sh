@@ -1,4 +1,5 @@
 #!/bin/bash
+set -e
 
 PROJECT_DIR="/zju_wck/yzh/3_train/OPSD"
 DEFAULT_EXP_DIR="$PROJECT_DIR/output/qwen31b_gen1024_fixteacher_temp11_forwardbeta0_clip005"
@@ -14,12 +15,20 @@ if [ -z "$OPSD_EVAL_BACKGROUND" ]; then
     exit 0
 fi
 
-BASE_MODEL="Qwen/Qwen3-1.7B"
-CUDA_DEVICES="2,3"
-TENSOR_PARALLEL_SIZE=2
+BASE_MODEL="${BASE_MODEL:-Qwen/Qwen3-1.7B}"
+CUDA_DEVICES="${CUDA_DEVICES:-2,3}"
+TENSOR_PARALLEL_SIZE="${TENSOR_PARALLEL_SIZE:-2}"
+GPU_MEMORY_UTILIZATION="${GPU_MEMORY_UTILIZATION:-0.9}"
+
+export HF_HOME="${HF_HOME:-~/.cache/huggingface}"
+export HF_HUB_OFFLINE="${HF_HUB_OFFLINE:-1}"
+export TRANSFORMERS_OFFLINE="${TRANSFORMERS_OFFLINE:-1}"
+export HF_DATASETS_OFFLINE="${HF_DATASETS_OFFLINE:-1}"
 
 echo "Evaluating experiment: $RUN_NAME"
 echo "Experiment dir: $EXP_DIR"
+echo "Base model: $BASE_MODEL"
+echo "CUDA devices: $CUDA_DEVICES"
 echo "Log file: $LOG_FILE"
 echo "Eval results dir: $EVAL_RESULTS_DIR"
 mkdir -p "$EVAL_RESULTS_DIR"
@@ -31,6 +40,7 @@ NCCL_P2P_DISABLE=1 CUDA_VISIBLE_DEVICES="$CUDA_DEVICES" python evaluate_math.py 
     --val_n 12 \
     --temperature 1.0 \
     --tensor_parallel_size "$TENSOR_PARALLEL_SIZE" \
+    --gpu_memory_utilization "$GPU_MEMORY_UTILIZATION" \
     --output_file "$EVAL_RESULTS_DIR/base_aime24_thinking_temp1.0_valn12.json"
 wait 
 
@@ -42,6 +52,7 @@ for step in 20 40 60 80 100; do
         --val_n 12 \
         --temperature 1.0 \
         --tensor_parallel_size "$TENSOR_PARALLEL_SIZE" \
+        --gpu_memory_utilization "$GPU_MEMORY_UTILIZATION" \
         --checkpoint_dir "$EXP_DIR/checkpoint-$step" \
         --output_file "$EVAL_RESULTS_DIR/checkpoint-${step}_aime24_thinking_temp1.0_valn12.json"
 done

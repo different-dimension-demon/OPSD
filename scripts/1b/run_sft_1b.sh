@@ -1,3 +1,9 @@
+export WANDB_MODE=offline
+export HF_HOME="~/.cache/huggingface"
+export HF_HUB_OFFLINE=1
+export TRANSFORMERS_OFFLINE=1
+export HF_DATASETS_OFFLINE=1
+
 export CUDA_VISIBLE_DEVICES=2,3
 export TORCH_CUDA_ARCH_LIST="8.0"
 
