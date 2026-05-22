@@ -63,9 +63,40 @@ find_free_port() {
     python - <<'PY'
 import socket
 
-with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-    s.bind(("127.0.0.1", 0))
-    print(s.getsockname()[1])
+HOST = "127.0.0.1"
+PORT_BLOCK_SIZE = 8
+MIN_PORT = 20000
+MAX_PORT = 60000
+
+
+def reserve_port_block(start_port):
+    sockets = []
+    try:
+        for port in range(start_port, start_port + PORT_BLOCK_SIZE):
+            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            sock.bind((HOST, port))
+            sockets.append(sock)
+        return True
+    except OSError:
+        return False
+    finally:
+        for sock in sockets:
+            sock.close()
+
+
+with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as seed:
+    seed.bind((HOST, 0))
+    candidate = seed.getsockname()[1]
+
+if MIN_PORT <= candidate <= MAX_PORT - PORT_BLOCK_SIZE and reserve_port_block(candidate):
+    print(candidate)
+else:
+    for candidate in range(MIN_PORT, MAX_PORT - PORT_BLOCK_SIZE + 1):
+        if reserve_port_block(candidate):
+            print(candidate)
+            break
+    else:
+        raise RuntimeError(f"Could not find {PORT_BLOCK_SIZE} consecutive free TCP ports")
 PY
 }
 
