@@ -1,3 +1,4 @@
+import os
 from contextlib import nullcontext
 
 import torch
@@ -25,25 +26,30 @@ class _TopKAdvantageTrainerBase(OPSDTrainer):
             return self.accelerator.unwrap_model(model).disable_adapter()
         return nullcontext()
 
-    def _sampled_log_probs(self, logits, sampled_token_ids):
-        log_probs = F.log_softmax(logits / self.temperature, dim=-1)
+    def _sampled_log_probs(self, logits, sampled_token_ids, temperature=None):
+        temperature = self.temperature if temperature is None else temperature
+        log_probs = F.log_softmax(logits / temperature, dim=-1)
         sampled_log_probs = torch.gather(
             log_probs, dim=-1, index=sampled_token_ids.unsqueeze(-1)
         ).squeeze(-1)
         del log_probs
         return sampled_log_probs
 
-    def _teacher_top_k_forward_kl_per_token(self, student_logits, teacher_logits):
+    def _teacher_top_k_forward_kl_per_token(self, student_logits, teacher_logits, temperature=None):
+        temperature = self.temperature if temperature is None else temperature
         kl_terms = self.generalized_jsd_loss(
             student_logits=student_logits,
             teacher_logits=teacher_logits,
             beta=0,
-            temperature=self.temperature,
+            temperature=temperature,
             reduction="none",
             top_k=self.top_k_loss,
             token_clip=self.jsd_token_clip,
         )
-        return kl_terms.sum(dim=-1)
+        per_token_kl = kl_terms.sum(dim=-1)
+        if self.top_k_loss is not None and self.top_k_loss > 0:
+            per_token_kl = per_token_kl / self.top_k_loss
+        return per_token_kl
 
     def _top_k_jsd_per_token(self, student_logits, teacher_logits):
         jsd_terms = self.generalized_jsd_loss(
@@ -69,7 +75,7 @@ class _TopKAdvantageTrainerBase(OPSDTrainer):
             return per_token_loss.mean()
         return per_token_loss.masked_fill(~valid_mask, 0).sum() / valid_mask.sum().clamp_min(1)
 
-    def _student_teacher_tensors(self, model, inputs):
+    def _student_teacher_tensors(self, model, inputs, log_prob_temperature=None):
         student_prompt_len = inputs["student_prompt_length"]
         teacher_prompt_len = inputs["teacher_prompt_length"]
         sampled_token_ids = inputs["student_input_ids"][:, student_prompt_len:]
@@ -80,7 +86,11 @@ class _TopKAdvantageTrainerBase(OPSDTrainer):
             attention_mask=inputs["student_attention_mask"],
         )
         student_logits = outputs_student.logits[:, student_prompt_len - 1 : -1, :]
-        student_sampled_log_probs = self._sampled_log_probs(student_logits, sampled_token_ids)
+        student_sampled_log_probs = self._sampled_log_probs(
+            student_logits,
+            sampled_token_ids,
+            temperature=log_prob_temperature,
+        )
         del outputs_student
         empty_cache()
 
@@ -90,7 +100,11 @@ class _TopKAdvantageTrainerBase(OPSDTrainer):
                 attention_mask=inputs["teacher_attention_mask"],
             )
             teacher_logits = outputs_teacher.logits[:, teacher_prompt_len - 1 : -1, :]
-            teacher_sampled_log_probs = self._sampled_log_probs(teacher_logits, sampled_token_ids)
+            teacher_sampled_log_probs = self._sampled_log_probs(
+                teacher_logits,
+                sampled_token_ids,
+                temperature=log_prob_temperature,
+            )
             del outputs_teacher
             empty_cache()
 
@@ -148,8 +162,13 @@ class TopKDropNegativePositionOPSDTrainer(_TopKAdvantageTrainerBase):
 class TopKAOPDNonPositiveOPSDTrainer(_TopKAdvantageTrainerBase):
     """AOPD non-positive handling with top-k teacher forward-KL guidance."""
 
+    @staticmethod
+    def _aopd_loss_temperature():
+        return float(os.environ.get("OPSD_AOPD_LOSS_TEMPERATURE", "1.0"))
+
     def compute_loss(self, model, inputs, return_outputs=False, num_items_in_batch=None):
         minimal_output = self._make_minimal_output() if return_outputs else None
+        loss_temperature = self._aopd_loss_temperature()
         (
             student_logits,
             teacher_logits,
@@ -157,7 +176,11 @@ class TopKAOPDNonPositiveOPSDTrainer(_TopKAdvantageTrainerBase):
             teacher_sampled_log_probs,
             advantage,
             shifted_labels,
-        ) = self._student_teacher_tensors(model, inputs)
+        ) = self._student_teacher_tensors(
+            model,
+            inputs,
+            log_prob_temperature=loss_temperature,
+        )
 
         positive_mask = advantage > 0
         nonpositive_mask = ~positive_mask
@@ -168,6 +191,7 @@ class TopKAOPDNonPositiveOPSDTrainer(_TopKAdvantageTrainerBase):
         teacher_guidance_loss = self._teacher_top_k_forward_kl_per_token(
             student_logits,
             teacher_logits,
+            temperature=loss_temperature,
         )
         teacher_guidance_loss = teacher_guidance_loss.masked_fill(~nonpositive_mask, 0)
 

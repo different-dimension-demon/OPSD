@@ -3,6 +3,7 @@ set -e
 
 export CUDA_VISIBLE_DEVICES=2,3
 export TORCH_CUDA_ARCH_LIST="8.0"
+export OPSD_AOPD_LOSS_TEMPERATURE="${OPSD_AOPD_LOSS_TEMPERATURE:-1.0}"
 
 nohup accelerate launch \
     --config_file scripts/configs/accelerate_2gpu.yaml \
