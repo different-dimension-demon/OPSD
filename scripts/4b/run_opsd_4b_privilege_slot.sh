@@ -15,7 +15,7 @@ NUM_PROCESSES="${NUM_PROCESSES:-2}"
 GRADIENT_ACCUMULATION_STEPS="${GRADIENT_ACCUMULATION_STEPS:-4}"
 
 nohup accelerate launch \
-    --config_file scripts/configs/accelerate.yaml \
+    --config_file scripts/configs/accelerate_2gpu_no_offload_auto.yaml \
     --num_processes "$NUM_PROCESSES" \
     --gradient_accumulation_steps "$GRADIENT_ACCUMULATION_STEPS" \
     --main_process_port "$MAIN_PROCESS_PORT" \
