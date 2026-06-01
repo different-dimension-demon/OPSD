@@ -28,12 +28,13 @@ nohup accelerate launch \
     --gradient_accumulation_steps "$GRADIENT_ACCUMULATION_STEPS" \
     --output_dir /zju_wck/yzh/3_train/OPSD/output/ \
     --run_config "$RUN_CONFIG" \
-    --num_train_epochs 30 \
+    --num_train_epochs 1 \
+    --max_steps 100 \
     --max_completion_length 1024 \
-    --save_steps 25 \
-    --logging_steps 2 \
+    --save_steps 20 \
+    --logging_steps 1 \
     --attn_implementation flash_attention_2 \
-    --torch_dtype bfloat16 \
+    --dtype bfloat16 \
     --max_length 20000 \
     --beta 0 \
     --use_vllm \

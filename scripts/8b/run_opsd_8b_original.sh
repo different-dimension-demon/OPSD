@@ -8,7 +8,7 @@ export TORCH_CUDA_ARCH_LIST="${TORCH_CUDA_ARCH_LIST:-8.0}"
 export TOKENIZERS_PARALLELISM="${TOKENIZERS_PARALLELISM:-false}"
 
 MODEL_NAME_OR_PATH="${MODEL_NAME_OR_PATH:-Qwen/Qwen3-8B}"
-RUN_CONFIG="${RUN_CONFIG:-qwen38b_gen1024_fixteacher_temp11_forwardbeta0_clip006}"
+RUN_CONFIG="${RUN_CONFIG:-qwen38b_gen1024_fixteacher_temp11_forwardbeta0_clip005}"
 LOG_FILE="${LOG_FILE:-opsd_8b_original_train.log}"
 MAIN_PROCESS_PORT="${MAIN_PROCESS_PORT:-12963}"
 NUM_PROCESSES="${NUM_PROCESSES:-2}"
@@ -28,12 +28,13 @@ nohup accelerate launch \
     --gradient_accumulation_steps "$GRADIENT_ACCUMULATION_STEPS" \
     --output_dir /zju_wck/yzh/3_train/OPSD/output/ \
     --run_config "$RUN_CONFIG" \
-    --num_train_epochs 30 \
+    --num_train_epochs 1 \
+    --max_steps 100 \
     --max_completion_length 1024 \
-    --save_steps 25 \
-    --logging_steps 2 \
+    --save_steps 20 \
+    --logging_steps 1 \
     --attn_implementation flash_attention_2 \
-    --torch_dtype bfloat16 \
+    --dtype bfloat16 \
     --max_length 20000 \
     --beta 0 \
     --use_vllm \
@@ -51,7 +52,7 @@ nohup accelerate launch \
     --fixed_teacher \
     --student_thinking false \
     --teacher_thinking true \
-    --jsd_token_clip 0.06 \
+    --jsd_token_clip 0.05 \
     --wandb_project OPSD \
     > "$LOG_FILE" 2>&1 &
 
