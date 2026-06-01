@@ -3,7 +3,7 @@ set -e
 
 cd /zju_wck/yzh/3_train/OPSD
 
-export CUDA_VISIBLE_DEVICES="${CUDA_VISIBLE_DEVICES:-0,1,2,3,4,5,6,7}"
+export CUDA_VISIBLE_DEVICES="${CUDA_VISIBLE_DEVICES:-0,1}"
 export TORCH_CUDA_ARCH_LIST="${TORCH_CUDA_ARCH_LIST:-8.0}"
 export TOKENIZERS_PARALLELISM="${TOKENIZERS_PARALLELISM:-false}"
 
@@ -11,11 +11,13 @@ MODEL_NAME_OR_PATH="${MODEL_NAME_OR_PATH:-Qwen/Qwen3-8B}"
 RUN_CONFIG="${RUN_CONFIG:-qwen38b_gen1024_fixteacher_temp11_forwardbeta0_clip006}"
 LOG_FILE="${LOG_FILE:-opsd_8b_original_train.log}"
 MAIN_PROCESS_PORT="${MAIN_PROCESS_PORT:-12963}"
+NUM_PROCESSES="${NUM_PROCESSES:-2}"
+GRADIENT_ACCUMULATION_STEPS="${GRADIENT_ACCUMULATION_STEPS:-8}"
 
 nohup accelerate launch \
     --config_file scripts/configs/accelerate.yaml \
-    --num_processes 8 \
-    --gradient_accumulation_steps 2 \
+    --num_processes "$NUM_PROCESSES" \
+    --gradient_accumulation_steps "$GRADIENT_ACCUMULATION_STEPS" \
     --main_process_port "$MAIN_PROCESS_PORT" \
     opsd_train.py \
     --model_name_or_path "$MODEL_NAME_OR_PATH" \
@@ -23,7 +25,7 @@ nohup accelerate launch \
     --max_grad_norm 0.1 \
     --per_device_train_batch_size 2 \
     --gradient_checkpointing \
-    --gradient_accumulation_steps 2 \
+    --gradient_accumulation_steps "$GRADIENT_ACCUMULATION_STEPS" \
     --output_dir /zju_wck/yzh/3_train/OPSD/output/ \
     --run_config "$RUN_CONFIG" \
     --num_train_epochs 30 \
@@ -56,4 +58,7 @@ nohup accelerate launch \
 echo "Started original OPSD 8B training."
 echo "Run config: $RUN_CONFIG"
 echo "Model: $MODEL_NAME_OR_PATH"
+echo "CUDA devices: $CUDA_VISIBLE_DEVICES"
+echo "Num processes: $NUM_PROCESSES"
+echo "Gradient accumulation steps: $GRADIENT_ACCUMULATION_STEPS"
 echo "Log: /zju_wck/yzh/3_train/OPSD/$LOG_FILE"
