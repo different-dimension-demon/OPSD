@@ -116,6 +116,11 @@ run_eval_if_missing "$BASE_OUTPUT_FILE" python evaluate_math.py \
 
 for step in 20 40 60 80 100; do
     echo "Evaluating checkpoint-$step..."
+    CHECKPOINT_DIR="$EXP_DIR/checkpoint-$step"
+    if [ ! -d "$CHECKPOINT_DIR" ]; then
+        echo "Skipping missing checkpoint: $CHECKPOINT_DIR"
+        continue
+    fi
     CHECKPOINT_OUTPUT_FILE="$EVAL_RESULTS_DIR/checkpoint-${step}_aime24_thinking_temp1.0_valn12.json"
     run_eval_if_missing "$CHECKPOINT_OUTPUT_FILE" python evaluate_math.py \
         --base_model "$BASE_MODEL" \
@@ -124,7 +129,7 @@ for step in 20 40 60 80 100; do
         --temperature 1.0 \
         --tensor_parallel_size "$TENSOR_PARALLEL_SIZE" \
         --gpu_memory_utilization "$GPU_MEMORY_UTILIZATION" \
-        --checkpoint_dir "$EXP_DIR/checkpoint-$step" \
+        --checkpoint_dir "$CHECKPOINT_DIR" \
         --output_file "$CHECKPOINT_OUTPUT_FILE"
 done
 
