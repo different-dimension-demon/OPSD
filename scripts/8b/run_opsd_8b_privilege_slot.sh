@@ -12,7 +12,7 @@ RUN_CONFIG="${RUN_CONFIG:-qwen38b_gen1024_fixteacher_temp11_privilege_slot}"
 LOG_FILE="${LOG_FILE:-opsd_8b_privilege_slot_train.log}"
 MAIN_PROCESS_PORT="${MAIN_PROCESS_PORT:-12964}"
 NUM_PROCESSES="${NUM_PROCESSES:-2}"
-GRADIENT_ACCUMULATION_STEPS="${GRADIENT_ACCUMULATION_STEPS:-16}"
+GRADIENT_ACCUMULATION_STEPS="${GRADIENT_ACCUMULATION_STEPS:-8}"
 
 nohup accelerate launch \
     --config_file scripts/configs/accelerate_2gpu_no_offload_auto.yaml \
@@ -23,7 +23,7 @@ nohup accelerate launch \
     --model_name_or_path "$MODEL_NAME_OR_PATH" \
     --learning_rate 5e-6 \
     --max_grad_norm 0.1 \
-    --per_device_train_batch_size 1 \
+    --per_device_train_batch_size 2 \
     --gradient_checkpointing \
     --gradient_accumulation_steps "$GRADIENT_ACCUMULATION_STEPS" \
     --output_dir /zju_wck/yzh/3_train/OPSD/output/ \
