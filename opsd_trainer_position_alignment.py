@@ -12,20 +12,22 @@ from trl.trainer.utils import empty_cache
 from opsd_trainer import OPSDTrainer
 
 
-class MaskPositionOPSDTrainer(OPSDTrainer):
-    """OPSD variant with mask-based position alignment.
+class PositionAlignmentOPSDTrainer(OPSDTrainer):
+    """OPSD privilege-slot attention/position alignment variants.
 
-    Rollout remains clean: the student generates from the original problem-only
-    prompt.  During the loss forward pass, teacher and student receive identical
-    token sequences containing the reference-solution privilege slot.  The
-    teacher can attend to that slot; the student cannot.  Both forwards receive
-    the same position_ids derived from a non-privilege mask, so ordinary tokens
-    occupy the same positions for teacher and student.
+    The student rollout prompt remains clean. During the loss forward pass,
+    teacher and student receive identical token sequences containing the
+    reference-solution privilege slot. The teacher can attend to that slot; the
+    student cannot. `position_alignment_mode` controls whether the privilege
+    slot advances shared position ids.
     """
+
+    VALID_MODES = {"mask_position", "student_align_teacher"}
 
     def __init__(
         self,
         *args,
+        position_alignment_mode="mask_position",
         position_alignment_debug=True,
         **kwargs,
     ):
@@ -33,19 +35,29 @@ class MaskPositionOPSDTrainer(OPSDTrainer):
         super().__init__(*args, **kwargs)
         if self.reason_first:
             raise ValueError(
-                "MaskPositionOPSDTrainer currently supports reason_first=False only. "
+                "PositionAlignmentOPSDTrainer currently supports reason_first=False only. "
                 "Use the original reason_first path or add a separate aligned reasoning variant."
             )
+        if position_alignment_mode not in self.VALID_MODES:
+            raise ValueError(
+                f"Unknown position_alignment_mode={position_alignment_mode!r}. "
+                f"Expected one of {sorted(self.VALID_MODES)}."
+            )
 
+        self.position_alignment_mode = position_alignment_mode
         self.position_alignment_debug = position_alignment_debug
         self._alignment_debug_printed = False
         self._privilege_slot_marker = "__OPSD_PRIVILEGE_SLOT__"
 
         print(f"\n{'='*80}")
-        print("MASK-BASED POSITION ALIGNMENT ENABLED")
-        print("Student rollout prompt remains clean; only loss prefixes are mask-position aligned.")
+        print("POSITION ALIGNMENT OPSD ENABLED")
+        print(f"Mode: {self.position_alignment_mode}")
+        print("Student rollout prompt remains clean; only loss prefixes are aligned.")
         print("Teacher sees the privilege slot; student masks it out.")
-        print("Position ids are generated from the shared non-privilege mask.")
+        if self.position_alignment_mode == "mask_position":
+            print("Privilege slots do not advance shared position_ids.")
+        else:
+            print("Privilege slots advance shared position_ids to match teacher natural positions.")
         print(f"{'='*80}\n")
 
     def _apply_teacher_chat_template(self, content):
@@ -72,7 +84,7 @@ class MaskPositionOPSDTrainer(OPSDTrainer):
     def _tokenize_text(self, text):
         return self.processing_class(text, add_special_tokens=False).input_ids
 
-    def _build_mask_position_prefix(self, problem, solution):
+    def _build_position_alignment_prefix(self, problem, solution):
         content_prefix, content_suffix = self._build_privilege_slot_text_parts(problem)
         templated = self._apply_teacher_chat_template(
             content_prefix + self._privilege_slot_marker + content_suffix
@@ -81,7 +93,6 @@ class MaskPositionOPSDTrainer(OPSDTrainer):
             raise ValueError("Privilege slot marker was not preserved by the chat template.")
 
         templated_prefix, templated_suffix = templated.split(self._privilege_slot_marker, 1)
-
         shared_prefix_ids = self._tokenize_text(templated_prefix)
         privilege_slot_ids = self._tokenize_text(solution)
         shared_suffix_ids = self._tokenize_text(templated_suffix)
@@ -92,10 +103,8 @@ class MaskPositionOPSDTrainer(OPSDTrainer):
             + [0] * len(privilege_slot_ids)
             + [1] * len(shared_suffix_ids)
         )
-
         if len(prefix_ids) != len(non_privilege_mask):
-            raise AssertionError("Internal mask-position alignment error: mask length mismatch.")
-
+            raise AssertionError("Internal position alignment error: mask length mismatch.")
         return prefix_ids, non_privilege_mask, len(privilege_slot_ids), len(shared_prefix_ids)
 
     def _build_position_ids(self, position_source_mask):
@@ -107,7 +116,7 @@ class MaskPositionOPSDTrainer(OPSDTrainer):
         if pad_token_id is None:
             pad_token_id = self.processing_class.eos_token_id
         if pad_token_id is None:
-            raise ValueError("Tokenizer must define pad_token_id or eos_token_id for mask-position padding.")
+            raise ValueError("Tokenizer must define pad_token_id or eos_token_id for position alignment padding.")
 
         input_ids = torch.full(
             (len(prefix_lists), max_len),
@@ -139,11 +148,14 @@ class MaskPositionOPSDTrainer(OPSDTrainer):
             teacher_attention_mask[idx, :current_len] = 1
             non_privilege_tensor = torch.tensor(non_privilege_mask, dtype=torch.long, device=device)
             student_attention_mask[idx, :current_len] = non_privilege_tensor
-            position_source_mask[idx, :current_len] = non_privilege_tensor
+            if self.position_alignment_mode == "mask_position":
+                position_source_mask[idx, :current_len] = non_privilege_tensor
+            else:
+                position_source_mask[idx, :current_len] = 1
 
         return input_ids, teacher_attention_mask, student_attention_mask, position_source_mask
 
-    def _build_mask_position_loss_inputs(self, inputs, generation_ids):
+    def _build_position_alignment_loss_inputs(self, inputs, generation_ids):
         device = self.accelerator.device
         prefix_lists = []
         non_privilege_masks = []
@@ -153,7 +165,7 @@ class MaskPositionOPSDTrainer(OPSDTrainer):
         slot_start_offsets = []
 
         for problem, solution in zip(inputs["problems"], inputs["solutions"]):
-            prefix_ids, non_privilege_mask, slot_len, slot_start = self._build_mask_position_prefix(
+            prefix_ids, non_privilege_mask, slot_len, slot_start = self._build_position_alignment_prefix(
                 problem,
                 solution,
             )
@@ -170,10 +182,10 @@ class MaskPositionOPSDTrainer(OPSDTrainer):
         if max_length is not None and total_len > max_length:
             longest_idx = max(range(len(prefix_lengths)), key=lambda i: prefix_lengths[i])
             raise ValueError(
-                "Mask-position aligned sequence exceeds max_length without truncation. "
-                f"max_length={max_length}, batch_max_prefix_len={max_prefix_len}, "
-                f"generation_len={generation_ids.shape[1]}, total_len={total_len}, "
-                f"longest_example_index={longest_idx}, "
+                "Position-aligned sequence exceeds max_length without truncation. "
+                f"mode={self.position_alignment_mode}, max_length={max_length}, "
+                f"batch_max_prefix_len={max_prefix_len}, generation_len={generation_ids.shape[1]}, "
+                f"total_len={total_len}, longest_example_index={longest_idx}, "
                 f"longest_slot_len={slot_lengths[longest_idx]}, "
                 f"longest_prefix_len={prefix_lengths[longest_idx]}. "
                 "Increase --max_length or reduce --max_completion_length; this variant does not "
@@ -216,23 +228,37 @@ class MaskPositionOPSDTrainer(OPSDTrainer):
                     raise AssertionError("Teacher attention mask cannot see all privilege slot tokens.")
 
                 generation_start_position = int(position_ids[idx, max_prefix_len].item())
-                expected_generation_start = non_privilege_lengths[idx]
+                if self.position_alignment_mode == "mask_position":
+                    expected_generation_start = non_privilege_lengths[idx]
+                else:
+                    expected_generation_start = actual_prefix_len
                 if generation_start_position != expected_generation_start:
                     raise AssertionError(
-                        "Generation position id is not aligned with non-privilege prefix length: "
-                        f"got {generation_start_position}, expected {expected_generation_start}"
+                        "Generation position id is not aligned with the selected mode: "
+                        f"mode={self.position_alignment_mode}, got {generation_start_position}, "
+                        f"expected {expected_generation_start}"
                     )
+
+                if self.position_alignment_mode == "student_align_teacher" and slot_lengths[idx] > 0:
+                    slot_first_position = int(position_ids[idx, slot_start].item())
+                    slot_last_position = int(position_ids[idx, slot_end - 1].item())
+                    if slot_first_position != slot_start or slot_last_position != slot_end - 1:
+                        raise AssertionError(
+                            "Privilege slot did not advance natural position ids as expected: "
+                            f"slot_start={slot_start}, got_first={slot_first_position}, "
+                            f"got_last={slot_last_position}, slot_end={slot_end}"
+                        )
 
             if not self._alignment_debug_printed and self.accelerator.is_main_process:
                 print(f"\n{'='*80}")
-                print("MASK-POSITION ALIGNMENT DEBUG")
+                print("POSITION ALIGNMENT DEBUG")
+                print(f"Mode: {self.position_alignment_mode}")
                 print(f"Batch max prefix length: {max_prefix_len}")
                 print(f"Generation width: {generation_ids.shape[1]}")
                 print(f"Slot lengths: {slot_lengths}")
                 print(f"Prefix lengths including privilege: {prefix_lengths}")
                 print(f"Non-privilege prefix lengths: {non_privilege_lengths}")
                 print("Teacher can attend to privilege slots; student cannot.")
-                print("Teacher/student share position_ids generated from non-privilege masks.")
                 print(f"{'='*80}\n")
                 self._alignment_debug_printed = True
 
@@ -266,7 +292,6 @@ class MaskPositionOPSDTrainer(OPSDTrainer):
             attention_mask=inputs["student_attention_mask"],
             position_ids=inputs["student_position_ids"],
         )
-
         student_logits = outputs_student.logits[:, student_prompt_len - 1 : -1, :]
 
         if self.use_thinking_machines_loss:
@@ -302,7 +327,6 @@ class MaskPositionOPSDTrainer(OPSDTrainer):
                 attention_mask=inputs["teacher_attention_mask"],
                 position_ids=inputs["teacher_position_ids"],
             )
-
             teacher_logits = outputs_teacher.logits[:, teacher_prompt_len - 1 : -1, :]
 
             if self.use_thinking_machines_loss:
@@ -393,7 +417,7 @@ class MaskPositionOPSDTrainer(OPSDTrainer):
 
         original_student_prompt_len = inputs["student_prompt_length"]
         generation_ids = generated_ids[:, original_student_prompt_len:]
-        alignment_info = self._build_mask_position_loss_inputs(inputs, generation_ids)
+        alignment_info = self._build_position_alignment_loss_inputs(inputs, generation_ids)
 
         self._textual_logs["prompt"].extend(gather_object(prompt_texts))
         self._textual_logs["completion"].extend(gather_object(completion_texts))
@@ -404,20 +428,21 @@ class MaskPositionOPSDTrainer(OPSDTrainer):
                     "step": self.state.global_step,
                     "prompt": prompt,
                     "completion": completion,
-                    "mask_position_alignment": True,
+                    "position_alignment_mode": self.position_alignment_mode,
                     "max_prefix_len": alignment_info["max_prefix_len"],
                 }
             )
 
         if random.random() < 0.01:
             print(f"\n{'='*80}")
-            print(f"MASK-POSITION OPSD SAMPLE (Step {self.state.global_step}):")
+            print(f"POSITION ALIGNMENT OPSD SAMPLE (Step {self.state.global_step}):")
+            print(f"Mode: {self.position_alignment_mode}")
             print(f"{'='*80}")
             sample_idx = random.randint(0, len(prompt_texts) - 1)
             print(f"\nClean rollout prompt:\n{prompt_texts[sample_idx]}")
             print(f"\nCompletion:\n{completion_texts[sample_idx]}")
             print(f"\nSlot length: {alignment_info['slot_lengths'][sample_idx]}")
-            print(f"Prefix length: {alignment_info['prefix_lengths'][sample_idx]}")
+            print(f"Prefix length including privilege: {alignment_info['prefix_lengths'][sample_idx]}")
             print(
                 "Non-privilege prefix length: "
                 f"{alignment_info['non_privilege_prefix_lengths'][sample_idx]}"

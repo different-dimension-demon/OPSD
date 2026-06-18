@@ -19,12 +19,14 @@ class SelfDistillationDataCollator:
         reason_first=True,
         student_thinking=False,
         teacher_thinking=True,
+        preserve_raw_fields=False,
     ):
         self.tokenizer = tokenizer
         self.max_length = max_length
         self.reason_first = reason_first
         self.student_thinking = student_thinking
         self.teacher_thinking = teacher_thinking
+        self.preserve_raw_fields = preserve_raw_fields
 
         # Prompt for reasoning about the solution before teaching
         self.reason_first_prompt = (
@@ -137,6 +139,9 @@ class SelfDistillationDataCollator:
             # Keep individual lengths for proper masking
             "student_prompt_lengths_per_example": torch.tensor(student_prompt_lengths),
         }
+        if self.preserve_raw_fields:
+            result["problems"] = [feature["problem"] for feature in features]
+            result["solutions"] = [feature["solution"] for feature in features]
 
         if self.reason_first:
             # Tokenize reasoning prompts

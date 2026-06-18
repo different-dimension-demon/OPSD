@@ -47,10 +47,11 @@ The code uses `trl`'s experimental GOLD trainer as a base.
 ├── sft_train.py             # SFT baseline training entry point
 ├── grpo_train.py            # GRPO baseline training entry point
 ├── scripts/
+│   ├── run_opsd.sh          # Unified OPSD launch script: <1b|4b|8b> <strategy>
 │   ├── configs/             # Accelerate configs
-│   ├── 1b/                  # Qwen3-1.7B launch scripts
-│   ├── 4b/                  # Qwen3-4B launch scripts
-│   └── 8b/                  # Qwen3-8B launch scripts
+│   ├── 1b/                  # Qwen3-1.7B SFT/GRPO/eval scripts
+│   ├── 4b/                  # Qwen3-4B SFT/GRPO/eval scripts
+│   └── 8b/                  # Qwen3-8B eval scripts
 └── eval/
     ├── evaluate_math.py     # Evaluation script (vLLM)
     └── run_eval.sh          # Example evaluation script
@@ -61,7 +62,7 @@ The code uses `trl`'s experimental GOLD trainer as a base.
 Reproduce results on Qwen3-1.7B (🚀 training only takes **~15 minutes** on 4×H100 and peaks within 100 steps):
 
 ```bash
-bash scripts/1b/run_opsd_1b.sh
+bash scripts/run_opsd.sh 1b original
 ```
 Evaluation: (evaluation takes ~ 30-50 minutes on 4xh100 for each checkpoint) 
 ```bash
@@ -125,8 +126,8 @@ OPSD can also run in non-thinking setting where both the Qwen student and teache
 
 Training:
 ```bash
-bash scripts/4b/run_opsd_4b_nonthink.sh
-bash scripts/8b/run_opsd_8b_nonthink.sh
+STUDENT_THINKING=false TEACHER_THINKING=false bash scripts/run_opsd.sh 4b original
+STUDENT_THINKING=false TEACHER_THINKING=false bash scripts/run_opsd.sh 8b original
 ```
 
 Evaluation:
